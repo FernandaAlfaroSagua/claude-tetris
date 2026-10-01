@@ -179,6 +179,24 @@ body {
   transform: translateX(18px);
 }
 
+/* ---- Skins ---- */
+#skin-select {
+  background: var(--kbd-bg);
+  color: var(--fg);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+body[data-skin="neon"] #board,
+body[data-skin="neon"] #next-canvas {
+  background: #000;
+  border-color: #1a1a2e;
+}
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;

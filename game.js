@@ -31,6 +31,59 @@ const LINE_SCORES = [0, 100, 300, 500, 800];
 const GRID_COLORS = { dark: '#22222e', light: '#dcdfec' };
 const THEME_KEY = 'tetris-theme';
 
+// ---- Skins ----
+const SKIN_KEY = 'tetris-skin';
+
+const SKINS = {
+  retro: {
+    colors: COLORS,
+    grid: GRID_COLORS, // follows light/dark theme
+    drawBlock: drawBlockRetro,
+  },
+  neon: {
+    colors: [
+      null,
+      '#00f0ff', // I
+      '#fff700', // O
+      '#d500f9', // T
+      '#39ff14', // S
+      '#ff1744', // Z
+      '#2979ff', // J
+      '#ff9100', // L
+    ],
+    grid: { dark: '#1a1a2e', light: '#1a1a2e' }, // board is always black
+    drawBlock: drawBlockNeon,
+  },
+  pastel: {
+    colors: [
+      null,
+      '#a8e6ef', // I
+      '#fff1b8', // O
+      '#d9b8f0', // T
+      '#b8e6c1', // S
+      '#f5b8b8', // Z
+      '#b8d4f5', // J
+      '#fbd3a8', // L
+    ],
+    grid: { dark: '#2a2a38', light: '#ece8f2' },
+    drawBlock: drawBlockPastel,
+  },
+  pixelart: {
+    colors: [
+      null,
+      '#29b6c8', // I
+      '#e6b800', // O
+      '#9c3fb0', // T
+      '#4caf50', // S
+      '#d84343', // Z
+      '#4a90d9', // J
+      '#e68a00', // L
+    ],
+    grid: { dark: '#22222e', light: '#dcdfec' },
+    drawBlock: drawBlockPixel,
+  },
+};
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -43,9 +96,11 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let theme = localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+let skin = 'retro';
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -161,20 +216,86 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
-function drawBlock(context, x, y, colorIndex, size, alpha) {
-  if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
+// ---- Skin drawing ----
+// Each strategy draws one block; drawBlock sets globalAlpha before calling it.
+function drawBlockRetro(context, x, y, color, size) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
   context.fillStyle = 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+}
+
+function drawBlockNeon(context, x, y, color, size) {
+  const px = x * size + 3, py = y * size + 3, s = size - 6;
+  context.shadowColor = color;
+  context.shadowBlur = 12;
+  context.fillStyle = color;
+  context.globalAlpha *= 0.35;
+  context.fillRect(px, py, s, s);
+  context.globalAlpha /= 0.35;
+  context.strokeStyle = color;
+  context.lineWidth = 2;
+  context.strokeRect(px, py, s, s);
+  // reset so the glow does not leak into other drawing
+  context.shadowBlur = 0;
+  context.shadowColor = 'transparent';
+}
+
+function drawBlockPastel(context, x, y, color, size) {
+  const px = x * size + 2, py = y * size + 2, s = size - 4, r = 7;
+  context.fillStyle = color;
+  context.beginPath();
+  if (context.roundRect) {
+    context.roundRect(px, py, s, s, r);
+  } else {
+    context.moveTo(px + r, py);
+    context.arcTo(px + s, py, px + s, py + s, r);
+    context.arcTo(px + s, py + s, px, py + s, r);
+    context.arcTo(px, py + s, px, py, r);
+    context.arcTo(px, py, px + s, py, r);
+    context.closePath();
+  }
+  context.fill();
+  // soft highlight
+  context.fillStyle = 'rgba(255,255,255,0.35)';
+  context.fillRect(px + 6, py + 4, s - 12, 3);
+}
+
+function drawBlockPixel(context, x, y, color, size) {
+  const px = x * size + 1, py = y * size + 1, s = size - 2, u = 3;
+  context.fillStyle = color;
+  context.fillRect(px, py, s, s);
+  // checker texture of lighter/darker sub-squares
+  const n = Math.floor(s / u);
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if ((r + c) % 2) continue;
+      context.fillStyle = (r % 4 < 2) ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)';
+      context.fillRect(px + c * u, py + r * u, u, u);
+    }
+  }
+  // hard bevel edges
+  context.fillStyle = 'rgba(255,255,255,0.5)';
+  context.fillRect(px, py, s, u);
+  context.fillRect(px, py, u, s);
+  context.fillStyle = 'rgba(0,0,0,0.45)';
+  context.fillRect(px, py + s - u, s, u);
+  context.fillRect(px + s - u, py, u, s);
+}
+
+function drawBlock(context, x, y, colorIndex, size, alpha) {
+  if (!colorIndex) return;
+  const def = SKINS[skin];
+  context.save();
+  context.globalAlpha = alpha ?? 1;
+  context.imageSmoothingEnabled = false;
+  def.drawBlock(context, x, y, def.colors[colorIndex], size);
+  context.restore();
 }
 
 function drawGrid() {
-  ctx.strokeStyle = GRID_COLORS[theme];
+  ctx.strokeStyle = SKINS[skin].grid[theme];
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -236,6 +357,24 @@ function setTheme(newTheme) {
   document.body.setAttribute('data-theme', theme);
   themeToggle.checked = theme === 'light';
   localStorage.setItem(THEME_KEY, theme);
+}
+
+function setSkin(name) {
+  skin = Object.prototype.hasOwnProperty.call(SKINS, name) ? name : 'retro';
+  document.body.dataset.skin = skin;
+  skinSelect.value = skin;
+  try { localStorage.setItem(SKIN_KEY, skin); } catch (e) { /* storage unavailable */ }
+  // refresh canvases without touching the loop or pause state
+  if (board && current && next && !gameOver) {
+    draw();
+    drawNext();
+  }
+}
+
+function loadSkin() {
+  let saved = null;
+  try { saved = localStorage.getItem(SKIN_KEY); } catch (e) { /* storage unavailable */ }
+  setSkin(saved);
 }
 
 function togglePause() {
@@ -315,5 +454,11 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 themeToggle.addEventListener('change', () => setTheme(themeToggle.checked ? 'light' : 'dark'));
+skinSelect.addEventListener('change', () => {
+  setSkin(skinSelect.value);
+  skinSelect.blur(); // keep keyboard controls (arrows/space) on the game
+});
+
+loadSkin();
 
 init();
