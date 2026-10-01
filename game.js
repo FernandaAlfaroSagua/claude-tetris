@@ -341,4 +341,5 @@ controlsBtn.addEventListener('click', () => controlsList.classList.toggle('hidde
 startLevelSelect.addEventListener('change', () => { startLevel = Number(startLevelSelect.value); });
 themeToggle.addEventListener('change', () => setTheme(themeToggle.checked ? 'light' : 'dark'));
 
+startLevelSelect.value = startLevel;
 init();
